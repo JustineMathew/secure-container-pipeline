@@ -15,3 +15,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Build container image
+        run: docker build -t secure-container-pipeline:${{ github.sha }} .
