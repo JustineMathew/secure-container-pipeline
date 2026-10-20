@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: orders-api
+  namespace: argocd
+spec:
+  project: default   # Deliberately broad: allows any repo, any namespace
+  source:
+    repoURL: https://github.com/JustineMathew/secure-container-pipeline.git
+    targetRevision: main
+    path: services/orders-api/deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: orders
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
