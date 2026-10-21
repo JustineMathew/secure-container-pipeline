@@ -11,15 +11,17 @@ on:
       - "services/orders-api/**"
       - ".github/workflows/build-orders-api.yml"
 
+# Least privilege: the job's GitHub token can read the repo and request
+# an OIDC identity token, nothing more.
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Deliberately insecure (T-01): long-lived AWS keys, exposed to every
-    # step of every run, including pull request builds.
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ap-south-1
       ECR_REPOSITORY_URL: ${{ secrets.ECR_REPOSITORY_URL }}
 
@@ -30,6 +32,15 @@ jobs:
       - name: Build image
         working-directory: services/orders-api
         run: docker build -t "$ECR_REPOSITORY_URL:${GITHUB_SHA::7}" .
+
+      # Only on push to main: exchange the OIDC token for short-lived AWS
+      # credentials. PRs skip this, and the trust policy would reject them anyway.
+      - name: Configure AWS credentials
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
 
       - name: Log in to ECR
         if: github.event_name == 'push'
