@@ -51,3 +51,10 @@ jobs:
       - name: Push image
         if: github.event_name == 'push'
         run: docker push "$ECR_REPOSITORY_URL:${GITHUB_SHA::7}"
+      
+      - name: Debug OIDC claims
+        if: github.event_name == 'push'
+        run: |
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '{sub, aud, repository, ref}'
