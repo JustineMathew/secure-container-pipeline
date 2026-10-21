@@ -1,0 +1,42 @@
+name: build-orders-api
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/orders-api/**"
+      - ".github/workflows/build-orders-api.yml"
+  pull_request:
+    paths:
+      - "services/orders-api/**"
+      - ".github/workflows/build-orders-api.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Deliberately insecure (T-01): long-lived AWS keys, exposed to every
+    # step of every run, including pull request builds.
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-south-1
+      ECR_REPOSITORY_URL: ${{ secrets.ECR_REPOSITORY_URL }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Build image
+        working-directory: services/orders-api
+        run: docker build -t "$ECR_REPOSITORY_URL:${GITHUB_SHA::7}" .
+
+      - name: Log in to ECR
+        if: github.event_name == 'push'
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "${ECR_REPOSITORY_URL%%/*}"
+
+      - name: Push image
+        if: github.event_name == 'push'
+        run: docker push "$ECR_REPOSITORY_URL:${GITHUB_SHA::7}"
