@@ -1,6 +1,7 @@
 name: build-orders-api
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -11,15 +12,13 @@ on:
       - "services/orders-api/**"
       - ".github/workflows/build-orders-api.yml"
 
-# Least privilege: the job's GitHub token can read the repo and request
-# an OIDC identity token, nothing more.
 permissions:
   contents: read
   id-token: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     env:
       AWS_REGION: ap-south-1
@@ -28,35 +27,24 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v5
-     
-      - name: Debug OIDC claims
-        if: github.event_name == 'push'
-        run: |
-          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '{sub, aud, repository, ref}'
 
       - name: Build image
         working-directory: services/orders-api
         run: docker build -t "$ECR_REPOSITORY_URL:${GITHUB_SHA::7}" .
 
-      # Only on push to main: exchange the OIDC token for short-lived AWS
-      # credentials. PRs skip this, and the trust policy would reject them anyway.
       - name: Configure AWS credentials
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ap-south-1
 
       - name: Log in to ECR
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: |
           aws ecr get-login-password --region "$AWS_REGION" \
             | docker login --username AWS --password-stdin "${ECR_REPOSITORY_URL%%/*}"
 
       - name: Push image
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: docker push "$ECR_REPOSITORY_URL:${GITHUB_SHA::7}"
-      
-
