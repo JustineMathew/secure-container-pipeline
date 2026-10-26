@@ -1,10 +1,6 @@
-# Deliberately insecure (T-01): a long-lived IAM user for CI.
-# Its access key is created outside Terraform (see README) and stored
-# as a GitHub secret. Replaced by OIDC federation in Phase 1.
-resource "aws_iam_user" "github_ci_baseline" {
-  name = "github-ci-baseline"
-}
-
+# Shared ECR push permissions, attached to the OIDC role (see iam-oidc.tf).
+# The former long-lived IAM user (T-01 baseline) was removed once OIDC
+# federation replaced it — there is no static credential anywhere now.
 data "aws_iam_policy_document" "ecr_push" {
   statement {
     sid       = "EcrLogin"
@@ -24,10 +20,4 @@ data "aws_iam_policy_document" "ecr_push" {
     ]
     resources = [aws_ecr_repository.orders_api.arn]
   }
-}
-
-resource "aws_iam_user_policy" "github_ci_baseline" {
-  name   = "ecr-push-orders-api"
-  user   = aws_iam_user.github_ci_baseline.name
-  policy = data.aws_iam_policy_document.ecr_push.json
 }
